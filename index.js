@@ -5,6 +5,7 @@ const cors = require("cors");
 const path = require('path')
 const port = 5000;
 app.use(express.json())
+app.use(cors())
 app.use('/images', express.static(path.join(__dirname + "/images")));
 
 const {authenticated, upload} = require('./middleware')

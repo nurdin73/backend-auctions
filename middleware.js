@@ -33,7 +33,7 @@ exports.authenticated = (req, res, next) => {
     if (token) {
       jwt.verify(token, process.env.SECRET_KEY, (err, decode) => {
         if (err) {
-          return res.status(403).json({
+          return res.status(200).json({
             success: false,
             message: "token is not valid"
           });
@@ -44,7 +44,7 @@ exports.authenticated = (req, res, next) => {
         }
       });
     } else {
-      return res.status(403).json({
+      return res.status(200).json({
         success: false,
         message: "You are not login"
       });

@@ -33,21 +33,21 @@ exports.register = (req,res) => {
     }).then(resEmail => {
         if(resEmail.length > 0) {
             res.send({
-                status: false,
+                success: false,
                 message: "Email has been registered"
             })
         } else {
             bcrypt.genSalt(10, (err, salt) => {
                 if(err) {
                     res.send({
-                        status: false,
+                        success: false,
                         message: err
                     })
                 } else {
                     bcrypt.hash(storePassword, salt, (err, hash) => {
                         if(err) {
                             res.send({
-                                status: false,
+                                success: false,
                                 message: err
                             })
                         } else {
@@ -60,12 +60,13 @@ exports.register = (req,res) => {
                                 if(result) {
                                     const token = jwt.sign({id: result.id}, process.env.SECRET_KEY)
                                     res.status (200).json ({
+                                        success: true,
                                         message: 'register user success',
                                         token: token,
                                     });
                                 } else {
                                     res.send({
-                                        status: false,
+                                        success: false,
                                         message: 'register user failed'
                                     })
                                 }
@@ -104,18 +105,19 @@ exports.login = (req,res) => {
             bcrypt.compare(storePassword, user.password, (err, isMatch) => {
                 if(err) {
                     res.send({
-                        status: false,
+                        success: false,
                         message: err
                     })
                 } else if(!isMatch) {
                     res.send({
-                        status: false,
+                        success: false,
                         message: "Password doesn't match"
                     })
                 } else {
                     const token = jwt.sign ({id: user.id}, process.env.SECRET_KEY);
                     res.status (200).json ({
-                        message: 'success',
+                        success: true,
+                        message: 'Login success',
                         email: user.email,
                         token: token,
                     });
@@ -123,7 +125,7 @@ exports.login = (req,res) => {
             })
         } else {
             res.send({
-                status: false,
+                success: false,
                 message: 'email is not registered'
             })
         }

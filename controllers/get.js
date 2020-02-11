@@ -64,6 +64,18 @@ exports.auctions = (req,res) => {
     })
 }
 
+exports.getAuction = (req,res) => {
+    userAuctions.findAll({
+    }).then(results => {
+        let id = []
+        for (let i = 0; i < results.length; i++) {
+            const element = results[i].userId;
+            id.push(element)
+        }
+        res.send(id)
+    })
+}
+
 exports.userAuctions = (req,res) => {
     userAuctions.findAll({
         where: {
@@ -88,7 +100,10 @@ exports.userAuctions = (req,res) => {
                 model: users,
                 as: "user"
             }
-        ]
+        ],
+        order: [
+            ['bidValue', 'DESC'],
+        ],
     }).then(results => {
         if(results.length > 0) {
             res.status(200).json(UserAuctions(results))
@@ -128,7 +143,8 @@ exports.orders = (req,res) => {
                 model: transactions,
                 as: "transaction"
             }
-        ]
+        ],
+        
     }).then(results => {
         if(results.length > 0) {
             res.status(200).json(Orders(results))
