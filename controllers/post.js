@@ -1,7 +1,7 @@
 const models = require('../models')
 const Sequelize = require('sequelize');
 const Op = Sequelize.Op
-const {getCode, getTimeAdd} = require('../helpers/function')
+const {getCode, getTimeAdd, convertToRupiah} = require('../helpers/function')
 const events = models.events
 const auctions = models.auctions
 const users = models.users
@@ -79,128 +79,82 @@ exports.auction = (req,res) => {
     })
 }
 
-exports.userAuction = (req,res) => {
-    let autoBid;
-    const {auctionId, autoBidValueMax} = req.body
-    auctionId === null || auctionId === "" ? res.send({message: "auction id is required", success: false}) : auctionId
-    if(autoBidValueMax < 0) {
-        res.send({message: "auto bid cannot be lower from 0", success: false})
-    } else if(autoBidValueMax === 0 || autoBidValueMax === null) {
-        autoBid = 0
-    } else if (autoBidValueMax > 0) {
-        autoBid = autoBidValueMax
+exports.bid = (req, res) => {
+    const {auctionId} = req.body
+    if(auctionId === null || auctionId === "" || auctionId === undefined) {
+        res.send({message: "auction ID is required", success: false})
     }
     auctions.findOne({
         where: {
             id: auctionId
         }
-    }).then(auction => {
-        if(auction) {
-            if(auction.status === false) {
-                if(auction.userId !== req.user_id) {
-                    if(auction.latestBidPrice !== auction.fixPrice) {
-                        const date = new Date(auction.endTime)
-                        const time = date.getTime()
-                        if(time > Date.now()) {
-                            userAuctions.findOne({
-                                where: {
-                                    userId: req.user_id,
-                                    auctionId: auctionId
-                                }
-                            }).then(user => {
-                                if(user) {
-                                    // let bidMax;
-                                    // if((user.bidValue + auction.bidAccumulation) > user.autoBidValueMax) {
-                                    //     bidMax = user.autoBidValueMax
-                                    // } else {
-                                    //     bidMax = user.bidValue + auction.bidAccumulation
-                                    // }
-                                    userAuctions.update(
-                                        {
-                                            bidValue: user.bidValue + auction.bidAccumulation,
-                                            autoBidValueMax: user.autoBidValueMax
-                                        },
-                                        {
-                                            where: {
+    }).then(dataAuction => {
+        if(dataAuction) {
+            if(dataAuction.status === false) {
+                if(dataAuction.userId !== req.user_id) {
+                    const date = new Date(dataAuction.startTime);
+                    const startTime = date.getTime()
+                    if(startTime < Date.now()) {
+                        const date = new Date(dataAuction.endTime)
+                        const endTime = date.getTime()
+                        if(endTime > Date.now()) {
+                            if(dataAuction.latestBidPrice !== dataAuction.fixPrice) {
+                                userAuctions.findOne({
+                                    where: {
+                                        auctionId: auctionId,
+                                        userId: req.user_id
+                                    }
+                                }).then(dataUser => {
+                                    if(dataUser) {
+                                        if(dataUser.autoBidValueMax === 0) {
+                                            userAuctions.create({
                                                 userId: req.user_id,
-                                                auctionId: auctionId
-                                            }
-                                        }
-                                    ).then(result => {
-                                        if(result) {
-                                            const addTime = getTimeAdd(auction.bidTimeAddition)
-                                            const endTime = time + addTime;
-                                            const auctionTime = new Date(endTime)
-                                                
-                                            userAuctions.findAll({
-                                                order: [["bidValue", "DESC"]]
-                                            }).then(data => {
-                                                userAuctions.findOne({
-                                                    where: {
-                                                        userId: req.user_id,
-                                                        auctionId: auctionId
-                                                    }
-                                                }).then(data2 => {
-                                                    if(data2.bidValue < data[0].bidValue) {
-                                                        auctions.update(
-                                                            {
-                                                                latestBidPrice: auction.startingPrice + data[0].bidValue,
-                                                                endTime: auctionTime
-                                                            },
-                                                            {
-                                                                where: {
-                                                                    id: auctionId
-                                                                }
+                                                auctionId: auctionId,
+                                                bidValue: dataAuction.bidAccumulation,
+                                                autoBidValueMax: 0
+                                            }).then(dataBid => {
+                                                if(dataBid) {
+                                                    const addTime = getTimeAdd(dataAuction.bidTimeAddition)
+                                                    const endDate = endTime + addTime;
+                                                    const auctionTime = new Date(endDate)
+                                                    auctions.update(
+                                                        {
+                                                            latestBidPrice: dataAuction.latestBidPrice + dataAuction.bidAccumulation,
+                                                            endTime: auctionTime
+                                                        },
+                                                        {
+                                                            where: {
+                                                                id: auctionId
                                                             }
-                                                        ).then(response => {
-                                                            if(response) {
-                                                                res.send({message: "bid auction success. but your bid is smaller", success: true})
-                                                            } else {
-                                                                res.send({message: "bid auction failed", success: false})
-                                                            }
-                                                        })
-                                                    } else {
-                                                        auctions.update(
-                                                            {
-                                                                latestBidPrice: auction.startingPrice + data[0].bidValue,
-                                                                endTime: auctionTime
-                                                            },
-                                                            {
-                                                                where: {
-                                                                    id: auctionId
-                                                                }
-                                                            }
-                                                        ).then(response => {
-                                                            if(response) {
-                                                                res.send({message: "bid auction success. your bid leads temporarily", success: true})
-                                                            } else {
-                                                                res.send({message: "bid auction failed", success: false})
-                                                            }
-                                                        })
-                                                    }
-                                                })
+                                                        }
+                                                    ).then(bidData => {
+                                                        if(bidData) {
+                                                            res.send({message: "bid auction has been added. please wait...", success: true})
+                                                        } else {
+                                                            res.send({message: "auction bid has been error, try it later", success: false})
+                                                        }
+                                                    })
+                                                } else {
+                                                    res.send({message: "auction bid has error. try it later", success: false})
+                                                }
                                             })
                                         } else {
-                                            res.send({message: "bid auction failed", success: false})
+                                            res.send({message: "your has added auto bid. when you want to bid. please wait the aut bid to maximum value. thanks", success:false})
                                         }
-                                    })
-                                } else {
-                                    userAuctions.create({
-                                        auctionId: auctionId,
-                                        userId: req.user_id,
-                                        bidValue: auction.bidAccumulation,
-                                        autoBidValueMax: autoBid
-                                    }).then(result => {
-                                        if(result) {
-                                            const addTime = getTimeAdd(auction.bidTimeAddition)
-                                            const endTime = time + addTime;
-                                            const auctionTime = new Date(endTime)
-                                            userAuctions.findAll({
-                                                order: [["bidValue", "DESC"]]
-                                            }).then(data => {
+                                    } else {
+                                        userAuctions.create({
+                                            userId: req.user_id,
+                                            auctionId: auctionId,
+                                            bidValue: dataAuction.bidAccumulation,
+                                            autoBidValueMax: 0
+                                        }).then(dataBid => {
+                                            if(dataBid) {
+                                                const addTime = getTimeAdd(dataAuction.bidTimeAddition)
+                                                const endDate = endTime + addTime;
+                                                const auctionTime = new Date(endDate)
                                                 auctions.update(
                                                     {
-                                                        latestBidPrice: auction.startingPrice + data[0].bidValue,
+                                                        latestBidPrice: dataAuction.latestBidPrice + dataAuction.bidAccumulation,
                                                         endTime: auctionTime
                                                     },
                                                     {
@@ -208,34 +162,269 @@ exports.userAuction = (req,res) => {
                                                             id: auctionId
                                                         }
                                                     }
-                                                ).then(response => {
-                                                    if(response) {
-                                                        res.send({message: "bid auction success.", success: true})
+                                                ).then(bidData => {
+                                                    if(bidData) {
+                                                        res.send({message: "bid auction has been added. please wait...", success: true})
                                                     } else {
-                                                        res.send({message: "bid auction failed", success: false})
+                                                        res.send({message: "auction bid has been error, try it later", success: false})
                                                     }
                                                 })
-                                            })
-                                        } else {
-                                            res.send({message: "bid auction failed", success: false})
-                                        }
-                                    })
-                                }
-                            })
+                                            } else {
+                                                res.send({message: "auction bid has error. try it later", success: false})
+                                            }
+                                        })
+                                    }
+                                })
+                            } else {
+                                res.send({message: "sorry.... auction price has reached the limit. ", success: false})
+                            }
                         } else {
-                            res.send({message: "auction is over", success: false})
+                            res.send({message: "The auction is over", success: false})
                         }
                     } else {
-                        res.send({message: "sorry.... auction price has reached the limit. ", success: false})
+                        res.send({message: "The auction hasn't started yet", success:false})
                     }
                 } else {
-                    res.send({message: "you cant auction your item", success: false})
+                    res.send({message: "you can bid your auction!", success: false})
                 }
             } else {
-                res.send({message: "auction sold out", success: false})
+                res.send({message: "auction sold out!", success: false})
             }
         } else {
-            res.send({message: "auction not found", success: false})
+            res.send({message: "auction not found", success:false})
+        }
+    })
+}
+
+
+exports.auto = (req,res) => {
+    const {auctionId, autoBidValueMax} = req.body
+    if(auctionId === null || auctionId === "" || auctionId === undefined) {
+        res.send({message: "auction ID is required", success: false})
+    }
+    if(autoBidValueMax < 0) {
+        res.send({message:"auto bid cannot be 0 or lower", success: false})
+    }
+    auctions.findOne({
+        where: {
+            id: auctionId
+        }
+    }).then(dataAuction => {
+        if(dataAuction) {
+            if(dataAuction.status === false) {
+                if(dataAuction.userId !== req.user_id) {
+                    const date = new Date(dataAuction.startTime);
+                    const startTime = date.getTime()
+                    if(startTime < Date.now()) {
+                        const date = new Date(dataAuction.endTime)
+                        const endTime = date.getTime()
+                        if(endTime > Date.now()) {
+                            if(autoBidValueMax > dataAuction.bidAccumulation) {
+                                if(dataAuction.latestBidPrice !== dataAuction.fixPrice) {
+                                    userAuctions.findOne({
+                                        where : {
+                                            userId: req.user_id,
+                                            auctionId: auctionId
+                                        }
+                                    }).then(userBid => {
+                                        if(userBid) {
+                                            if(userBid.autoBidValueMax === 0) {
+                                                userAuctions.update(
+                                                    {
+                                                        bidValue: dataAuction.bidAccumulation,
+                                                        autoBidValueMax: autoBidValueMax
+                                                    },
+                                                    {
+                                                        where: {
+                                                            userId: req.user_id,
+                                                            auctionId: auctionId
+                                                        }
+                                                    }
+                                                ).then(result => {
+                                                    if(result) {
+                                                        const addTime = getTimeAdd(dataAuction.bidTimeAddition)
+                                                        const endDate = endTime + addTime;
+                                                        const auctionTime = new Date(endDate)
+                                                        auctions.update(
+                                                            {
+                                                                latestBidPrice: dataAuction.latestBidPrice + dataAuction.bidAccumulation,
+                                                                endTime: auctionTime 
+                                                            },
+                                                            {
+                                                                where: {
+                                                                    id: auctionId
+                                                                }
+                                                            }
+                                                        ).then(response => {
+                                                            if(response) {
+                                                                res.send({message: "bid success. your auto bid has added. thanks", success: true})
+                                                            } else {
+                                                                res.send({message: "auto bid failed", success: false})
+                                                            }
+                                                        })
+                                                    } else {
+                                                        res.send({message: "auto bid failed!", success: false})
+                                                    }
+                                                })
+                                            } else {
+                                                if(userBid.autoBidValueMax < userBid.bidValue) {
+                                                    if(userBid.autoBidValueMax < autoBidValueMax) {
+                                                        userAuctions.update(
+                                                            {
+                                                                bidValue: dataAuction.bidAccumulation,
+                                                                autoBidValueMax: autoBidValueMax
+                                                            },
+                                                            {
+                                                                where: {
+                                                                    userId: req.user_id,
+                                                                    auctionId: auctionId
+                                                                }
+                                                            }
+                                                        ).then(result => {
+                                                            if(result) {
+                                                                const addTime = getTimeAdd(dataAuction.bidTimeAddition)
+                                                                const endDate = endTime + addTime;
+                                                                const auctionTime = new Date(endDate)
+                                                                auctions.update(
+                                                                    {
+                                                                        latestBidPrice: dataAuction.latestBidPrice + dataAuction.bidAccumulation,
+                                                                        endTime: auctionTime 
+                                                                    },
+                                                                    {
+                                                                        where: {
+                                                                            id: auctionId
+                                                                        }
+                                                                    }
+                                                                ).then(response => {
+                                                                    if(response) {
+                                                                        res.send({message: "bid success. your auto bid has added. thanks", success: true})
+                                                                    } else {
+                                                                        res.send({message: "auto bid failed", success: false})
+                                                                    }
+                                                                })
+                                                            } else {
+                                                                res.send({message: "auto bid failed!", success: false})
+                                                            }
+                                                        })
+                                                    } else {
+                                                        res.send({message: "your account has auto bid this auction of " + convertToRupiah(userBid.autoBidValueMax) +". if you want to add auto bid, please value mush be high from previous auto bid!", success: false})
+                                                    }
+                                                } else {
+                                                    res.send({message: "sorry. your auto bid in this auction is remaining. try later", success: false})
+                                                }
+                                            }
+                                        } else {
+                                            if(userBid.autoBidValueMax === 0) {
+                                                userAuctions.create({
+                                                    auctionId: auctionId,
+                                                    userId: req.user_id,
+                                                    bidValue: dataAuction.bidAccumulation,
+                                                    autoBidValueMax: autoBidValueMax
+                                                }).then(result => {
+                                                    if(result) {
+                                                        const addTime = getTimeAdd(dataAuction.bidTimeAddition)
+                                                        const endDate = endTime + addTime;
+                                                        const auctionTime = new Date(endDate)
+                                                        auctions.update(
+                                                            {
+                                                                latestBidPrice: dataAuction.latestBidPrice + dataAuction.bidAccumulation,
+                                                                endTime: auctionTime 
+                                                            },
+                                                            {
+                                                                where: {
+                                                                    id: auctionId
+                                                                }
+                                                            }
+                                                        ).then(response => {
+                                                            if(response) {
+                                                                res.send({message: "bid success. your auto bid has added. thanks", success: true})
+                                                            } else {
+                                                                res.send({message: "auto bid failed", success: false})
+                                                            }
+                                                        })
+                                                    } else {
+                                                        res.send({message: "auto bid failed!", success: false})
+                                                    }
+                                                })
+                                            } else {
+                                                if(userBid.autoBidValueMax < userBid.bidValue) {
+                                                    if(userBid.autoBidValueMax < autoBidValueMax) {
+                                                        userAuctions.create({
+                                                            auctionId: auctionId,
+                                                            userId: req.user_id,
+                                                            bidValue: userBid.bidValue,
+                                                            autoBidValueMax: autoBidValueMax
+                                                        }).then(result => {
+                                                            if(result) {
+                                                                const addTime = getTimeAdd(dataAuction.bidTimeAddition)
+                                                                const endDate = endTime + addTime;
+                                                                const auctionTime = new Date(endDate)
+                                                                auctions.update(
+                                                                    {
+                                                                        latestBidPrice: dataAuction.latestBidPrice + dataAuction.bidAccumulation,
+                                                                        endTime: auctionTime 
+                                                                    },
+                                                                    {
+                                                                        where: {
+                                                                            id: auctionId
+                                                                        }
+                                                                    }
+                                                                ).then(response => {
+                                                                    if(response) {
+                                                                        res.send({message: "bid success. your auto bid has added. thanks", success: true})
+                                                                    } else {
+                                                                        res.send({message: "auto bid failed", success: false})
+                                                                    }
+                                                                })
+                                                            } else {
+                                                                res.send({message: "auto bid failed!", success: false})
+                                                            }
+                                                        })
+                                                    } else {
+                                                        res.send({message: "your account has auto bid this auction of " + convertToRupiah(userBid.autoBidValueMax) +". if you want to add auto bid, please value mush be high from previous auto bid!", success: false})
+                                                    }
+                                                } else {
+                                                    res.send({message: "sorry. your auto bid in this auction is remaining. try later", success: false})
+                                                }
+                                            }
+                                        }
+                                    })
+                                } else {
+                                    res.send({message: "sorry.... auction price has reached the limit. ", success: false})
+                                }
+                            } else {
+                                res.send({message: "auto bid mush be higher from bid accumulation", success: false})
+                            }
+                        } else {
+                            res.send({message: "The auction is over", success: false})
+                        }
+                    } else {
+                        res.send({message: "The auction hasn't started yet", success:false})
+                    }
+                } else {
+                    res.send({message: "you can bid your auction!", success: false})
+                }
+            } else {
+                res.send({message: "auction sold out!", success: false})
+            }
+        } else {
+            res.send({message: "auction not found", success:false})
+        }
+    })
+
+}
+
+exports.autoBid = (req,res) => {
+    const {auctionId} = req.body
+    if(auctionId === null || auctionId === "" || auctionId === undefined) {
+        res.send({message: "auction ID is required", success: false})
+    }
+    userAuctions.findAll({
+        where: {
+            auctionId: auctionId,
+            autoBidValueMax: {
+                [Op.not] : 0
+            }
         }
     })
 }

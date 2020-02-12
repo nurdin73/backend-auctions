@@ -26,9 +26,11 @@ app.group('/api/v1', router => {
     router.get('/orders', authenticated, getControllers.orders)
     router.get('/transactions', authenticated, getControllers.transactions)
     router.get('/news', getControllers.news)
+    router.get('/profile', authenticated, getControllers.profile)
 
     router.post('/auction', authenticated, upload.single('images'), postControllers.auction)
-    router.post('/user-auction', authenticated, postControllers.userAuction)
+    router.post('/user-auction', authenticated, postControllers.bid)
+    router.post('/auto-bid', authenticated, postControllers.auto)
     router.post('/order', authenticated, postControllers.order)
     router.post('/transaction', authenticated, postControllers.transaction)
 

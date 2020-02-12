@@ -190,3 +190,18 @@ exports.news = (req,res) => {
         }
     })
 }
+
+exports.profile = (req,res) => {
+    users.findOne({
+        where: {
+            id: req.user_id
+        },
+        attributes: ["id", "firstName", "lastName", "email"]
+    }).then(result => {
+        if(result) {
+            res.status(200).json(result)
+        } else {
+            res.send({message: "user not found"})
+        }
+    })
+}
