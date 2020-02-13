@@ -1,3 +1,4 @@
+const multer = require('multer')
 exports.Auctions = data => {
     const newAuctions = data.map(data => {
         let auction = {
@@ -120,3 +121,26 @@ exports.convertToRupiah = (angka) => {
     for(var i = 0; i < angkarev.length; i++) if(i%3 === 0) rupiah += angkarev.substr(i,3)+'.';
     return 'Rp. '+rupiah.split('',rupiah.length-1).reverse().join('');
 }
+
+const storage = multer.diskStorage({
+	destination: (req, file, cb) => {
+			cb(null, "./images/");
+	},
+	filename: function(req,file,cb) {
+			cb(null, file.fieldname + '_' + new Date().getTime()  + path.extname(file.originalname))
+	}
+})
+exports.upload = multer({
+	storage: storage,
+	fileFilter: (req, file, cb) => {
+		if(file.mimetype == "image/png" || file.mimetype == "image/jpg" || file.mimetype == "image/jpeg") {
+			cb(null, true)
+		} else {
+			cb(null, false)
+			return cb(new Error("Only .png, .jpg, and .jpeg format allowed"))
+		}
+	},
+	limits: {
+		fileSize: 4 * 1024 * 1024
+	}
+}).single('images')
