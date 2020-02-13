@@ -1,4 +1,6 @@
 const models = require('../models')
+const Sequelize = require('sequelize');
+const Op = Sequelize.Op
 const {Auctions, UserAuctions, Orders} = require('../helpers/function')
 const events = models.events
 const auctions = models.auctions
@@ -21,7 +23,10 @@ exports.events = (req,res) => {
 exports.auctionsByEvent = (req,res) => {
     auctions.findAll({
         where: {
-            eventId: req.params.id
+            eventId: req.params.id,
+            endTime: {
+                [Op.gt] : new Date()
+            }
         },
         include: [
             {
@@ -54,7 +59,12 @@ exports.auctions = (req,res) => {
                 model: users,
                 as: "createdBy"
             }
-        ]
+        ],
+        where: {
+            endTime: {
+                [Op.gt] : new Date()
+            }
+        }
     }).then(results => {
         if(results.length > 0) {
             res.status(200).json(Auctions(results))
@@ -65,14 +75,30 @@ exports.auctions = (req,res) => {
 }
 
 exports.getAuction = (req,res) => {
+
     userAuctions.findAll({
+        attributes: [[Sequelize.fn('sum', Sequelize.col('bidValue')), 'total']],
+        raw: true,
     }).then(results => {
-        let id = []
+        let data = 0
         for (let i = 0; i < results.length; i++) {
-            const element = results[i].userId;
-            id.push(element)
+            const element = results[i].total;
+            data = parseInt(element)
         }
-        res.send(id)
+        auctions.update(
+            {
+                latestBidPrice: 2000000 + data,
+            },
+            {
+                where: {
+                    id: req.body.auctionId
+                }
+            }
+        ).then(data => {
+            res.json(data)
+        }).catch(err => {
+            res.json(err)
+        })
     })
 }
 
@@ -199,7 +225,11 @@ exports.profile = (req,res) => {
         attributes: ["id", "firstName", "lastName", "email"]
     }).then(result => {
         if(result) {
-            res.status(200).json(result)
+            res.status(200).json({
+                name: result.firstName,
+                initial: result.firstName[0],
+                email: result.email
+            })
         } else {
             res.send({message: "user not found"})
         }

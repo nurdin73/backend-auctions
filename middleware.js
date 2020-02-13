@@ -22,7 +22,7 @@ exports.upload = multer({
     }
   },
   limits: {
-    fileSize: 2048
+    fileSize: 4 * 1024 * 1024
   }
 })
 exports.authenticated = (req, res, next) => {
