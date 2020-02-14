@@ -112,7 +112,38 @@ exports.bid = (req, res) => {
                                     }
                                 }).then(check => {
                                     if(check) {
-                                        res.send({message: "you has added auto bid. please wait of max value. try later", success: false})
+                                        if(check.autoBidValueMax <= check.bidValue) {
+                                            console.log("masuk sini")
+                                            userAuctions.update(
+                                                {
+                                                    bidValue: check.bidValue + dataAuction.bidAccumulation
+                                                },
+                                                {
+                                                    where: {
+                                                        id: check.id
+                                                    }
+                                                }
+                                            ).then(result => {
+                                                if(!result) return res.send({message: "add bid failed. please try later", success: false})
+                                                const addTime = getTimeAdd(dataAuction.bidTimeAddition)
+                                                const endDate = endTime + addTime;
+                                                const auctionTime = new Date(endDate)
+                                                auctions.update(
+                                                    {
+                                                        latestBidPrice: dataAuction.latestBidPrice + dataAuction.bidAccumulation,
+                                                        endTime: auctionTime
+                                                    },
+                                                    {
+                                                        where: {
+                                                            id: auctionId
+                                                        }
+                                                    }
+                                                )
+                                                res.send({message: "bid success..", success: true})
+                                            })
+                                        } else {
+                                            res.send({message: "you has added auto bid. please wait of max value. try later", success: false})
+                                        }
                                     } else {
                                         userAuctions.create({
                                             userId: req.user_id,
@@ -313,7 +344,10 @@ exports.autoBid = (req,res) => {
             auctionId,
             autoBidValueMax: {
                 [Op.not] : 0
-            }
+            },
+            userId: {
+                [Op.not] : req.user_id
+            } 
         },
         attributes: ['id', 'auctionId', 'userId', 'bidValue', 'autoBidValueMax']
     })
@@ -321,7 +355,10 @@ exports.autoBid = (req,res) => {
         // console.log(JSON.stringify(results,null,4))
         if(results.length > 0) {
             auctions
-            .findOne({ where:{ id: auctionId }})
+            .findOne({ 
+                where:{ 
+                    id: auctionId, 
+                }})
             .then(result => {
                 return result;
             })
@@ -353,7 +390,8 @@ exports.autoBid = (req,res) => {
                             attributes: [[Sequelize.fn('sum', Sequelize.col('bidValue')), 'total']],
                             raw: true,
                             where: {
-                                auctionId: auctionId
+                                auctionId: auctionId,
+                                autoBidValueMax: 0
                             }
                         }).then(price => {
                             let data = 0
@@ -361,7 +399,6 @@ exports.autoBid = (req,res) => {
                                 const element = price[i].total;
                                 data = parseInt(element)
                             }
-                            console.log(data, "===")
                             auctions.update(
                                 {
                                     latestBidPrice: response.startingPrice + data,
